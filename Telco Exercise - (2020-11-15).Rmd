@@ -1,0 +1,142 @@
+
+---
+title: "Telco Exercise(Jiyoung Kim) - 20201115"
+output:
+  html_document:
+    toc: true
+---
+
+
+```{r}
+%md
+
+## Telco Exercises
+Import telco.csv and do the following exercises using the Spark DataFrame API (10 points):
+
+1. Create a dataframe containing 'customerID' and 'MonthlyCharges'
+2. Show on a pie chart the proportions of possible types of 'Contract'
+3. Get the number of customers that have Multiple Lines. Show the result as value of a single variable (2 points)
+4. What are the minimum and maximum values of tenure? (2 points)
+5. What are the monthly charges depending on the gender of the customer?
+6. Do customers who have a yearly contract pay on average more than the others? Return the result as a single bool variable (2 points)
+7. Create a column that will store the division of Total Charges by tenure
+```
+
+
+```{r}
+
+library(SparkR)
+
+telco <- read.df("/FileStore/tables/telco-2.csv", source = "csv", header="true", inferSchema = "true")
+
+display(telco)
+```
+
+```{r}
+df_telco <- as.data.frame(telco)
+df_telco
+```
+
+
+```{r}
+#0. Checking basic things such as type of each variables, structure, and statistical summary
+str(df_telco) 
+summary(df_telco)
+```
+
+
+```{r}
+#### Exercise 1 ####
+
+df1 <- df_telco[, c("customerID", "MonthlyCharges")]
+display(df1)
+
+```
+
+
+```{r}
+#### Exercise 2 ####
+
+# make summary table of Contract column
+sum_contract <- table(df_telco$Contract)
+sum_contract
+```
+
+
+```{r}
+# Draw pie chart with proportions
+pct <- round(sum_contract/sum(sum_contract)*100,2)
+label <- paste(names(sum_contract), "\n", pct, "%")
+pie(sum_contract, labels=label, main='Contract Type Pie Chart(%)')
+
+```
+
+
+```{r}
+#### Exercise 3 ####
+
+customers_w_multiplelines <- length(which(df_telco$MultipleLines=="Yes"))
+print(customers_w_multiplelines)
+```
+
+
+```{r}
+#### Exercise 4 ####
+attach(df_telco)
+min(tenure) #minimum values of tenure
+```
+
+
+```{r}
+max(tenure) #maximum values of tenure
+```
+
+
+```{r}
+#### Exercise 5 ####
+
+install.packages("dplyr")
+library(dplyr, warn.conflicts = FALSE) #using this 
+options(dplyr.summarise.inform = FALSE) #using this options to get rid of warnings for grouping in summarize fuction
+```
+
+
+```{r}
+summarise(group_by(df_telco, gender), MonthlyCharges_sum = sum(MonthlyCharges, na.rm = TRUE), MonthlyCharges_mean = mean(MonthlyCharges, na.rm = TRUE)) # sum and mean(average) of Monthly Charges by gender
+```
+
+
+```{r}
+#### Exercise 6 ####
+
+pay <- as.data.frame(summarise(group_by(df_telco, Contract), MonthlyCharges_mean = mean(MonthlyCharges, na.rm = TRUE))) #according to this summarized result table, we can actually know that customers with yearly contract pays less than the ones with Month-to-month contract who pays the most, but pays more than the ones with 2-year contract.
+pay
+```
+
+
+```{r}
+#Put the result as a single bool variable in new column
+
+pay %>% mutate(result = ifelse(pay[,2]<pay[2,2], "True","False")) %>% arrange(result) %>% head  #this result column is an answer for the question "Do customers with yearly contract pay on average more than the contracts you can see on each rows" 
+
+## So, the conclusion is customers who have a yearly contract doesn't pay on average more than the others. Instead, as you can see in the table below, the customers with month-to-month contract(which is shortest contract) pays the most than the others on average. 
+```
+
+
+```{r}
+#### Exercise 7 ####
+
+sum(is.na(TotalCharges)) #TotalCharges doesn't have any NA values but somehow its var type is chr now
+```
+
+
+```{r}
+TotalCharges <- as.numeric(TotalCharges) #So, change type from chr to num
+```
+
+
+```{r}
+df_telco$TotalCharges_by_Tenure <- (TotalCharges/tenure)  #Average Bill for each customer and Monthly Charges are almost similar but different, maybe this is bcz of "rounding" of number. bcz monthly charges are integer!
+display(df_telco) #you can see newly added column at the right-end side
+```
+
